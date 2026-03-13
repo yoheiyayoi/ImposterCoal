@@ -5,6 +5,7 @@
   "mixins": [
     "AbstractMinecartMixin",
     "ExampleMixin",
+    "FurnaceMinecart",
     "VehicleEntityMixin"
   ],
   "injectors": {
