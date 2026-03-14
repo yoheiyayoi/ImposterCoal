@@ -70,7 +70,7 @@ public class FurnaceMinecart {
     @Unique
     private void playServerSound(MinecartFurnace cart, SoundEvent sound, float volume, float pitch) {
         if (!cart.level().isClientSide()) {
-            ((ServerLevel) cart.level()).playSound(
+            cart.level().playSound(
                     null,
                     cart.blockPosition(),
                     sound,
@@ -91,7 +91,6 @@ public class FurnaceMinecart {
         // dub fire
         if (getIsOverheat() && item == Items.WATER_BUCKET) {
             setIsOverheat(false);
-            cart.clearFire();
             fuelCooldown = AFTER_FIRE_COOLDOWN;
 
             if (!player.isCreative()) {
@@ -150,6 +149,9 @@ public class FurnaceMinecart {
         // render fire effect (client)
         if (getIsOverheat()) {
             cart.igniteForTicks(1);
+        } else {
+            // clear fire is already exting skibiding
+            if (cart.isOnFire()) cart.clearFire();
         }
 
         if (cart.level().isClientSide()) return;
