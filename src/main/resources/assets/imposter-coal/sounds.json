@@ -1,0 +1,15 @@
+{
+  "imposter_win": {
+    "subtitle": "Imposter Victory Sound",
+    "sounds": [
+      "imposter-coal:imposter_win"
+    ]
+  },
+
+  "survivor_win": {
+    "subtitle": "Imposter Victory Sound",
+    "sounds": [
+      "imposter-coal:survivor_win"
+    ]
+  }
+}

@@ -47,7 +47,7 @@ public class GameControlCommand {
 
         if (!manager.isStart()) return 1;
 
-        manager.cartReachTheEnd();
+        manager.survivorWin();
         return 1;
     }
 }
