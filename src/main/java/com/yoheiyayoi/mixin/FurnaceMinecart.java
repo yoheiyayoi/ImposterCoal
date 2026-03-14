@@ -2,27 +2,29 @@ package com.yoheiyayoi.mixin;
 
 import com.yoheiyayoi.ImposterCoal;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.vehicle.minecart.MinecartFurnace;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.BaseRailBlock;
 import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -32,13 +34,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(MinecartFurnace.class)
 public class FurnaceMinecart {
     //-- Local
-    private int currentFuel = 0;
-    private int MAX_FUEL_TO_PUSH = 10;
+    @Unique private int currentFuel = 0;
+    @Unique private int fuelCooldown = 0;
 
-    private int COAL_COOLDOWN = 0; // 1.5s
-    private int CHARCOAL_COOLDOWN = 20 * 3; // 3s
-    private int AFTER_FIRE_COOLDOWN = 20 * 20; // 20s
-    private int fuelCooldown = 0;
+    @Unique private static final int MAX_FUEL_TO_PUSH = 10;
+    @Unique private static final int COAL_COOLDOWN = 30; // 1.5s
+    @Unique private static final int CHARCOAL_COOLDOWN = 20 * 3; // 3s
+    @Unique private static final int AFTER_FIRE_COOLDOWN = 20 * 20; // 20s
 
     //-- Functions
 
@@ -64,6 +66,21 @@ public class FurnaceMinecart {
         ((MinecartFurnace)(Object) this).getEntityData().set(IS_OVERHEAT, value);
     }
 
+
+    @Unique
+    private void playServerSound(MinecartFurnace cart, SoundEvent sound, float volume, float pitch) {
+        if (!cart.level().isClientSide()) {
+            ((ServerLevel) cart.level()).playSound(
+                    null,
+                    cart.blockPosition(),
+                    sound,
+                    SoundSource.BLOCKS,
+                    volume,
+                    pitch
+            );
+        }
+    }
+
     // custom fuel method
     @Inject(method = "interact", at = @At("HEAD"), cancellable = true)
     private void onInteract(Player player, InteractionHand interactionHand, CallbackInfoReturnable<InteractionResult> cir) {
@@ -82,17 +99,7 @@ public class FurnaceMinecart {
             }
 
             // play sound on server
-            if (!cart.level().isClientSide()) {
-                ServerLevel serverLevel = (ServerLevel) cart.level();
-                serverLevel.playSound(
-                        null,
-                        cart.blockPosition(),
-                        SoundEvents.BUCKET_EMPTY,
-                        SoundSource.BLOCKS,
-                        1.0f,
-                        1.0f
-                );
-            }
+            playServerSound(cart, SoundEvents.BUCKET_EMPTY, 1.0f, 1.0f);
 
             cir.setReturnValue(InteractionResult.SUCCESS);
             return;
@@ -108,18 +115,31 @@ public class FurnaceMinecart {
         if (item == Items.COAL || item == Items.CHARCOAL) {
             currentFuel += 1;
 
+            int itemCooldown = item == Items.COAL ? COAL_COOLDOWN : CHARCOAL_COOLDOWN;
+
             // set cooldown
-            if (currentFuel != MAX_FUEL_TO_PUSH) {
-                fuelCooldown = item == Items.COAL ? COAL_COOLDOWN : CHARCOAL_COOLDOWN;
+            if (currentFuel < MAX_FUEL_TO_PUSH) {
+                fuelCooldown = itemCooldown;
+            }
+
+            // effect
+            if (!cart.level().isClientSide() && currentFuel < MAX_FUEL_TO_PUSH) {
+                Vec3 pos = cart.position();
+                ((ServerLevel) cart.level()).sendParticles(
+                        ParticleTypes.SMOKE,
+                        pos.x, pos.y + 0.5, pos.z,
+                        10, 0.5, 0.5, 0.5, 0.05
+                );
+                playServerSound(cart, SoundEvents.WITHER_SHOOT, 0.1f, 1.0f);
             }
 
             pushCartIfCan(player);
 
             if (!player.isCreative())
                 stack.consume(1, player);
-        }
 
-        cir.setReturnValue(InteractionResult.SUCCESS);
+            cir.setReturnValue(InteractionResult.SUCCESS);
+        }
     }
 
     // Cooldown handler
@@ -136,18 +156,9 @@ public class FurnaceMinecart {
 
         // fire effect (server)
         if (getIsOverheat()) {
-            ServerLevel serverLevel = (ServerLevel) cart.level();
-
             // play sound every 2 sec
             if (cart.tickCount % 40 == 0) {
-                serverLevel.playSound(
-                        null,
-                        cart.blockPosition(),
-                        SoundEvents.FIRE_AMBIENT,
-                        SoundSource.BLOCKS,
-                        2.0f,
-                        1.0f
-                );
+                playServerSound(cart, SoundEvents.FIRE_AMBIENT, 2.0f, 1.0f);
             }
         }
 
@@ -193,6 +204,23 @@ public class FurnaceMinecart {
     }
 
     @Unique
+    private boolean hasRailAhead() {
+        MinecartFurnace cart = (MinecartFurnace)(Object) this;
+
+        Direction dir = cart.getMotionDirection();
+        BlockPos aheadPos = cart.blockPosition().relative(dir);
+
+        Level level = cart.level();
+        return isRail(level, aheadPos) || isRail(level, aheadPos.below());
+    }
+
+    @Unique
+    private boolean isRail(Level level, BlockPos pos) {
+        ImposterCoal.LOGGER.info(String.format("checking rail at %d %d %d", pos.getX(), pos.getY(), pos.getZ()));
+        return level.getBlockState(pos).getBlock() instanceof BaseRailBlock;
+    }
+
+    @Unique
     private void pushCartIfCan(@Nullable Player player) {
         MinecartFurnace cart = (MinecartFurnace)(Object) this;
 
@@ -202,18 +230,21 @@ public class FurnaceMinecart {
 
             // random overheat
             if (!cart.level().isClientSide()) {
-                int random = (int) (Math.random() * 4) + 1; // 1 in 4
-                if (random == 2) {
+                // 1 in 4 chance logic
+                // in old code who use 1-4 to random? oh it's me bruh
+                if (Math.random() < 0.25) {
                     ImposterCoal.LOGGER.info("FIRE");
                     setIsOverheat(true);
-                };
+                }
             }
 
             Vec3 playerPos = player.position();
+            Vec3 pushDir = cart.position().subtract(playerPos).horizontal().normalize();
 
-            // cart not move if overheat
-            if (!getIsOverheat()) {
-                cart.push = cart.position().subtract(playerPos).horizontal().normalize().scale(0.035);
+            // move cart if not overheat and have rail ahead skibidi toilet
+            ImposterCoal.LOGGER.info(hasRailAhead() ? "true" : "false");
+            if (!getIsOverheat() && hasRailAhead()) {
+                cart.push = pushDir.scale(0.035);
             }
 
             if (!cart.level().isClientSide()) {
@@ -223,17 +254,9 @@ public class FurnaceMinecart {
                 serverLevel.sendParticles(
                         ParticleTypes.FLAME,
                         pos.x, pos.y + 0.5, pos.z,
-                        6, 0.4, 0.4, 0.4, 0.02
+                        50, 0.5, 0.5, 0.5, 0.05
                 );
-
-                serverLevel.playSound(
-                        null,
-                        cart.blockPosition(),
-                        SoundEvents.ENDER_EYE_DEATH,
-                        SoundSource.BLOCKS,
-                        1.0f,
-                        1.0f
-                );
+                playServerSound(cart, SoundEvents.GHAST_SHOOT, 1.0f, 1.0f);
             }
         }
     }

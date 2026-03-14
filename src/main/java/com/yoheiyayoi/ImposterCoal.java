@@ -1,7 +1,9 @@
 package com.yoheiyayoi;
 
+import com.yoheiyayoi.event.CancelRailBreak;
 import net.fabricmc.api.ModInitializer;
 
+import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -11,6 +13,6 @@ public class ImposterCoal implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
-		LOGGER.info("Hello Fabric world!");
+		CancelRailBreak.register();
 	}
 }
