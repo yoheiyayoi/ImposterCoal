@@ -8,25 +8,14 @@ import net.minecraft.server.permissions.Permissions;
 public class CommandRegister {
     public static void register() {
         CommandRegistrationCallback.EVENT.register(((dispatcher, commandBuildContext, commandSelection) -> {
-            // setup game (set gamerule and etc)
-            dispatcher.register(Commands.literal("setup_imposter_coal")
+            // impostercoal command (setup, start, finish, end)
+            dispatcher.register(Commands.literal("impostercoal")
                     .requires(source -> source.permissions().hasPermission(Permissions.COMMANDS_MODERATOR))
-                    .executes(GameControlCommand::setupGame));
-
-            // start game
-            dispatcher.register(Commands.literal("start_game")
-                    .requires(source -> source.permissions().hasPermission(Permissions.COMMANDS_MODERATOR))
-                    .executes(GameControlCommand::startGame));
-
-            // force end game
-            dispatcher.register(Commands.literal("end_game")
-                    .requires(source -> source.permissions().hasPermission(Permissions.COMMANDS_MODERATOR))
-                    .executes(GameControlCommand::endGame));
-
-            // cart reach the end
-            dispatcher.register(Commands.literal("cart_reach_the_end")
-                    .requires(source -> source.permissions().hasPermission(Permissions.COMMANDS_MODERATOR))
-                    .executes(GameControlCommand::cartReachTheEnd));
+                    .then(Commands.literal("setup").executes(GameControlCommand::setupGame))
+                    .then(Commands.literal("start").executes(GameControlCommand::startGame))
+                    .then(Commands.literal("finish").executes(GameControlCommand::cartReachTheEnd))
+                    .then(Commands.literal("end").executes(GameControlCommand::endGame))
+            );
 
             // mute command (for imposter)
             dispatcher.register(Commands.literal("mute")

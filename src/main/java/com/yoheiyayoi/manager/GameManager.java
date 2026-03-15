@@ -264,6 +264,7 @@ public class GameManager {
                 Component.literal("เกมถูกยุติแล้ว!").withStyle(ChatFormatting.YELLOW)
         );
 
+        playServerSound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
         resetGame();
     }
 
