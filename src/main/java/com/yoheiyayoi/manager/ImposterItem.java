@@ -3,14 +3,9 @@ package com.yoheiyayoi.manager;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.EquipmentSlotGroup;
-import net.minecraft.world.entity.ai.attributes.AttributeModifier;
-import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.component.ItemAttributeModifiers;
 
 public class ImposterItem {
     //-- Items
@@ -29,6 +24,22 @@ public class ImposterItem {
 
     public static void giveItemToImposter(ServerPlayer player) {
         ItemStack hammer = getHammer();
-        player.getInventory().add(hammer);
+
+        // add item to inventory but not main hand
+        // ปาย said: แม่งเคียวมาโผล่ในมือเลย
+        giveItemNotMainHand(player, hammer);
+    }
+
+    //-- Utils
+    private static void giveItemNotMainHand(ServerPlayer player, ItemStack item) {
+        for (int slot = 1; slot < 36; slot++) {
+            if (player.getInventory().getItem(slot).isEmpty()) {
+                player.getInventory().setItem(slot, item);
+                return;
+            }
+        }
+
+        // inventory full, drop the item
+        player.drop(item, false);
     }
 }
