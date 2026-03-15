@@ -316,7 +316,8 @@ public class GameManager {
     }
 
     public boolean canMutePlayer() {
-        return isGameStart && imposterAssigned;
+        boolean isRemainTwentyMins = tickCounter >= Utils.convertMinuteToTick(40) && tickCounter < TIME_TIL_GAME_END;
+        return isGameStart && imposterAssigned && isRemainTwentyMins && !isUseMutePower;
     }
 
     //-- Utils
