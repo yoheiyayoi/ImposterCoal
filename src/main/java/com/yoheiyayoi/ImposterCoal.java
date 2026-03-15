@@ -2,6 +2,7 @@ package com.yoheiyayoi;
 
 import com.yoheiyayoi.command.CommandRegister;
 import com.yoheiyayoi.event.CancelRailBreak;
+import com.yoheiyayoi.event.ImposterBreakRail;
 import com.yoheiyayoi.manager.GameManager;
 import com.yoheiyayoi.sound.ModSounds;
 import net.fabricmc.api.ModInitializer;
@@ -21,7 +22,10 @@ public class ImposterCoal implements ModInitializer {
 	public void onInitialize() {
 		// Init
 		ServerLifecycleEvents.SERVER_STARTED.register(server -> {
-			GameManager.getInstance().init(server);
+			GameManager gameManager = GameManager.getInstance();
+			gameManager.init(server);
+			gameManager.resetGame();
+			LOGGER.info("ImposterCoal mod initialized!");
 		});
 
 		ServerTickEvents.END_SERVER_TICK.register(server -> {
@@ -38,6 +42,7 @@ public class ImposterCoal implements ModInitializer {
 
 		// Events
 		CancelRailBreak.register();
+		ImposterBreakRail.register();
 
 		// Commands
 		CommandRegister.register();

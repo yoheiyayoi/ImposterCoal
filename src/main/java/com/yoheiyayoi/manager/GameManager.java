@@ -1,6 +1,7 @@
 package com.yoheiyayoi.manager;
 
 import com.yoheiyayoi.Utils;
+import com.yoheiyayoi.event.ImposterBreakRail;
 import com.yoheiyayoi.sound.ModSounds;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -10,10 +11,14 @@ import net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket;
 import net.minecraft.network.protocol.game.ClientboundSetTitlesAnimationPacket;
 import net.minecraft.network.protocol.game.ClientboundSoundPacket;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerBossEvent;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.BossEvent;
+import net.minecraft.world.level.gamerules.GameRules;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
@@ -26,13 +31,15 @@ public class GameManager {
 
     //-- Global
     private static GameManager instance;
-    private static final int TIME_TIL_RANDOM_IMPOSTER = Utils.convertSecondToTick(20); // 5 mins
-    private static final int TIME_TIL_GAME_END = Utils.convertSecondToTick(40); // 60 mins
+    private static final int TIME_TIL_RANDOM_IMPOSTER = Utils.convertMinuteToTick(5); // 5 mins
+    private static final int TIME_TIL_GAME_END = Utils.convertMinuteToTick(60); // 60 mins
     private static final int COUNTDOWN_DURATION = Utils.convertSecondToTick(10);
 
     //-- Local
     private boolean isGameStart = false;
     private MinecraftServer server;
+    public boolean isUseMutePower = false;
+    private ServerBossEvent bossBar;
 
     // Roles
     private UUID imposterUUID = null;
@@ -62,6 +69,7 @@ public class GameManager {
 
         handleImposterRandom();
         handleGameSequence();
+        handleBossBar();
     }
 
     private void handleImposterRandom() {
@@ -89,9 +97,20 @@ public class GameManager {
     private void handleGameSequence() {
         int remaining = TIME_TIL_GAME_END - tickCounter;
 
+        // monster spawn after 15 mins
+        if (remaining == Utils.convertMinuteToTick(45)) {
+            boardCast(Component.literal("⚠ 15 นาทีผ่านไป มอนสเตอร์เริ่มเกิดแล้ว!").withStyle(ChatFormatting.YELLOW), false);
+            playServerSound(SoundEvents.EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
+
+            ServerLevel level = server.overworld();
+            GameRules rules = level.getGameRules();
+            rules.set(GameRules.SPAWN_MOBS, true, server);
+        }
+
         // 20 mins warn
         if (remaining == Utils.convertMinuteToTick(20)) {
             sendTimeUpCountdown("20", "นาที");
+            boardCast(Component.literal("ระวังถูกฆาตกรสาปนะ").withStyle(ChatFormatting.YELLOW), false);
         }
 
         // second warn
@@ -106,28 +125,24 @@ public class GameManager {
         }
     }
 
-    //-- Game Logic
-    public void startGame() {
-        isGameStart = true;
-        tickCounter = 0;
-        imposterAssigned = false;
-        imposterUUID = null;
-        survivorUUIDs.clear();
+    private void handleBossBar() {
+        if (bossBar != null && tickCounter % 20 == 0) {
+            int totalTicks = TIME_TIL_GAME_END;
+            int remainingTicks = totalTicks - tickCounter;
+            int mins = (remainingTicks / 20) / 60;
+            int secs = (remainingTicks / 20) % 60;
 
-        // register all current players as survivors for now cuz we random imposter later
-        server.getPlayerList().getPlayers().forEach(player -> survivorUUIDs.add(player.getUUID()));
+            // update text
+            bossBar.setName(
+                    Component.literal(String.format("เวลาคงเหลือ %02d:%02d", mins, secs)).withStyle(ChatFormatting.WHITE)
+            );
 
-        boardCast(Component.literal("เกมเริ่มแล้ว!").withStyle(ChatFormatting.BOLD, ChatFormatting.GREEN), false);
-        sendRandomImposterCountdown("5", "นาที");
-
-        sendTitleToAll(
-                Component.literal("Game Start!").withStyle(ChatFormatting.BOLD, ChatFormatting.YELLOW),
-                Component.literal("ขอให้โชคดี!").withStyle(ChatFormatting.GREEN)
-        );
-
-        playServerSound(SoundEvents.LIGHTNING_BOLT_THUNDER, 1.0f, 1.0f);
+            // update progress bar
+            bossBar.setProgress((float) remainingTicks / totalTicks);
+        }
     }
 
+    //-- Game Logic
     private void assignImposter() {
         imposterAssigned = true;
 
@@ -139,12 +154,14 @@ public class GameManager {
         imposterUUID = imposter.getUUID();
         survivorUUIDs.remove(imposterUUID);
 
+        ImposterItem.giveItemToImposter(imposter);
+
         // tell imposter
         imposter.sendSystemMessage(
                 Component.literal("⚠ คุณคือฆาตกร! กำจัดผู้รอดชีวิตให้หมดหรือขัดขวางไม่ให้รถไฟไปถึงจุดหมายให้ได้!").withStyle(ChatFormatting.BOLD, ChatFormatting.RED)
         );
 
-        sendTitle(imposter,
+        Utils.sendTitleToPlayer(imposter,
                 Component.literal("คุณคือ ฆาตกร!").withStyle(ChatFormatting.BOLD, ChatFormatting.RED),
                 Component.literal("กำจัดทุกคน!").withStyle(ChatFormatting.DARK_RED)
         );
@@ -156,7 +173,7 @@ public class GameManager {
                         Component.literal("✔ คุณคือผู้รอดชีวิต! ระวังฆาตกรและหาถ่านไปใส่รถไฟให้ได้!").withStyle(ChatFormatting.BOLD, ChatFormatting.GREEN)
                 );
 
-                sendTitle(player,
+                Utils.sendTitleToPlayer(player,
                         Component.literal("คุณคือ ผู้รอดชีวิต!").withStyle(ChatFormatting.BOLD, ChatFormatting.GREEN),
                         Component.literal("เอาตัวรอดให้ได้!").withStyle(ChatFormatting.YELLOW)
                 );
@@ -180,6 +197,11 @@ public class GameManager {
 
         // survivor died = remove from set
         survivorUUIDs.remove(died);
+        Utils.sendTitleToPlayer(player,
+                Component.literal("You are").withStyle(ChatFormatting.WHITE)
+                        .append(Component.literal(" DEAD").withStyle(ChatFormatting.BOLD, ChatFormatting.RED)),
+                null
+        );
 
         // all survivors dead = imposter wins
         if (survivorUUIDs.isEmpty()) {
@@ -187,12 +209,57 @@ public class GameManager {
         }
     }
 
-    private void resetGame() {
+    // reset everything
+    public void resetGame() {
         isGameStart = false;
         tickCounter = 0;
         imposterAssigned = false;
         imposterUUID = null;
         survivorUUIDs.clear();
+        isUseMutePower = false;
+
+        // reset broken rails
+        BrokenRailManager.getInstance().reset();
+
+        // reset imposter hammer cooldown
+        ImposterBreakRail.reset();
+
+        // reset bossbar
+        if (bossBar != null) {
+            bossBar.removeAllPlayers();
+            bossBar = null;
+        }
+    }
+
+    public void startGame() {
+        isGameStart = true;
+        tickCounter = 0;
+        imposterAssigned = false;
+        imposterUUID = null;
+        survivorUUIDs.clear();
+
+        // register all current players as survivors for now cuz we random imposter later
+        server.getPlayerList().getPlayers().forEach(player -> survivorUUIDs.add(player.getUUID()));
+
+        boardCast(Component.literal("เกมเริ่มแล้ว!").withStyle(ChatFormatting.BOLD, ChatFormatting.GREEN), false);
+        sendRandomImposterCountdown("5", "นาที");
+
+        sendTitleToAll(
+                Component.literal("Game Start!").withStyle(ChatFormatting.BOLD, ChatFormatting.YELLOW),
+                Component.literal("ขอให้โชคดี!").withStyle(ChatFormatting.GREEN)
+        );
+
+        playServerSound(SoundEvents.LIGHTNING_BOLT_THUNDER, 1.0f, 1.0f);
+
+        // setup bossbar
+        bossBar = new ServerBossEvent(
+                Component.literal("เวลาคงเหลือ 60:60").withStyle(ChatFormatting.WHITE),
+                BossEvent.BossBarColor.RED,
+                BossEvent.BossBarOverlay.PROGRESS
+        );
+
+        server.getPlayerList().getPlayers().forEach(bossBar::addPlayer);
+        bossBar.setProgress(1.0f);
     }
 
     public void endGame() {
@@ -248,6 +315,10 @@ public class GameManager {
         return survivorUUIDs;
     }
 
+    public boolean canMutePlayer() {
+        return isGameStart && imposterAssigned;
+    }
+
     //-- Utils
     private void boardCast(Component component, boolean actionBar) {
         server.getPlayerList().broadcastSystemMessage(component, actionBar);
@@ -255,31 +326,20 @@ public class GameManager {
 
     private void playServerSound(SoundEvent sound, float volume, float pitch) {
         server.getPlayerList().getPlayers().forEach(player -> {
-            player.connection.send(new ClientboundSoundPacket(
-                    BuiltInRegistries.SOUND_EVENT.wrapAsHolder(sound),
-                    SoundSource.MASTER,
-                    player.getX(), player.getY(), player.getZ(),
-                    volume * 100f, pitch, 0L
-            ));
+            Utils.sendSoundToPlayer(player, sound, volume * 100f, pitch);
         });
     }
 
-    private void sendTitle(ServerPlayer player, Component title, @Nullable Component subTitle) {
-        player.connection.send(new ClientboundSetTitlesAnimationPacket(10, 70, 20));
-        player.connection.send(new ClientboundSetTitleTextPacket(title));
-
-        if (subTitle != null) {
-            player.connection.send(new ClientboundSetSubtitleTextPacket(subTitle));
-        }
-    }
-
     private void sendTitleToAll(Component title, @Nullable Component subTitle) {
-        server.getPlayerList().getPlayers().forEach(player -> sendTitle(player, title, subTitle));
+        server.getPlayerList().getPlayers().forEach(player -> Utils.sendTitleToPlayer(player, title, subTitle));
     }
 
     private void sendCountdownToAll(Component title) {
         boardCast(title, false);
-        playServerSound(SoundEvents.EXPERIENCE_ORB_PICKUP, 0.5f, 1.0f);
+
+        server.getPlayerList().getPlayers().forEach(player -> {
+            Utils.sendSoundToPlayer(player, SoundEvents.EXPERIENCE_ORB_PICKUP, 0.5f, 1.0f);
+        });
     }
 
     private void sendRandomImposterCountdown(String content, String tileUnit) {

@@ -5,8 +5,29 @@ import com.yoheiyayoi.manager.GameManager;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.gamerules.GameRules;
 
 public class GameControlCommand {
+    // setup game
+    public static int setupGame(CommandContext<CommandSourceStack> context) {
+        MinecraftServer server = context.getSource().getServer();
+        ServerLevel level = server.overworld();
+        GameRules rules = level.getGameRules();
+
+        rules.set(GameRules.LOCATOR_BAR, false, server);
+        rules.set(GameRules.SPAWN_MOBS, false, server); // 15 นาทีแรกมอนไม่เกิด
+        rules.set(GameRules.SHOW_DEATH_MESSAGES, false, server);
+        rules.set(GameRules.SHOW_ADVANCEMENT_MESSAGES, false, server);
+
+        context.getSource().sendSuccess(() ->
+                Component.literal("[✔] ตั้งค่า gamerules แล้ว!").withStyle(ChatFormatting.GREEN), false
+        );
+
+        return 1;
+    }
+
     // start game
     public static int startGame(CommandContext<CommandSourceStack> context) {
         GameManager manager = GameManager.getInstance();

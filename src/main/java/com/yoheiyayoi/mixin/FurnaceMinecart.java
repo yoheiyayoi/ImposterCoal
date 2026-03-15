@@ -1,6 +1,7 @@
 package com.yoheiyayoi.mixin;
 
 import com.yoheiyayoi.ImposterCoal;
+import com.yoheiyayoi.manager.BrokenRailManager;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -156,6 +157,16 @@ public class FurnaceMinecart {
 
         if (cart.level().isClientSide()) return;
 
+        BrokenRailManager brm = BrokenRailManager.getInstance();
+        BlockPos currentPos = cart.blockPosition();
+        Direction dir = cart.getMotionDirection();
+        BlockPos aheadPos = currentPos.relative(dir);
+
+        if (brm.isBroken(currentPos) || brm.isBroken(aheadPos) || brm.isBroken(aheadPos.below())) {
+            cart.setDeltaMovement(Vec3.ZERO);
+            cart.push = Vec3.ZERO;
+        }
+
         // fire effect (server)
         if (getIsOverheat()) {
             // play sound every 2 sec
@@ -213,7 +224,16 @@ public class FurnaceMinecart {
         BlockPos aheadPos = cart.blockPosition().relative(dir);
 
         Level level = cart.level();
-        return isRail(level, aheadPos) || isRail(level, aheadPos.below());
+        return (isRail(level, aheadPos) || isRail(level, aheadPos.below())) && !isBrokenRailAhead(aheadPos);
+    }
+
+    @Unique
+    private boolean isBrokenRailAhead(BlockPos aheadPos) {
+        MinecartFurnace cart = (MinecartFurnace)(Object) this;
+        if (cart.level().isClientSide()) return false;
+
+        BrokenRailManager brm = BrokenRailManager.getInstance();
+        return brm.isBroken(aheadPos) || brm.isBroken(aheadPos.below());
     }
 
     @Unique
