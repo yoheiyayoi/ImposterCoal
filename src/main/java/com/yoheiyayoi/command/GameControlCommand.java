@@ -7,6 +7,7 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.Difficulty;
 import net.minecraft.world.level.gamerules.GameRules;
 
 public class GameControlCommand {
@@ -21,8 +22,10 @@ public class GameControlCommand {
         rules.set(GameRules.SHOW_DEATH_MESSAGES, false, server);
         rules.set(GameRules.SHOW_ADVANCEMENT_MESSAGES, false, server);
 
+        server.setDifficulty(Difficulty.NORMAL, true);
+
         context.getSource().sendSuccess(() ->
-                Component.literal("[✔] ตั้งค่า gamerules แล้ว!").withStyle(ChatFormatting.GREEN), false
+                Component.literal("[✔] setup เรียบร้อยแล้ว").withStyle(ChatFormatting.GREEN), false
         );
 
         return 1;

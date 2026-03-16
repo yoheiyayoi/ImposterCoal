@@ -10,7 +10,9 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.Difficulty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,6 +28,8 @@ public class ImposterCoal implements ModInitializer {
 			gameManager.init(server);
 			gameManager.resetGame();
 			LOGGER.info("ImposterCoal mod initialized!");
+
+			server.setDifficulty(Difficulty.NORMAL, true);
 		});
 
 		ServerTickEvents.END_SERVER_TICK.register(server -> {
@@ -36,6 +40,10 @@ public class ImposterCoal implements ModInitializer {
 			if (entity instanceof ServerPlayer player) {
 				GameManager.getInstance().onPlayerDeath(player);
 			}
+		});
+
+		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
+			GameManager.getInstance().onPlayerJoin(handler.player);
 		});
 
 		ModSounds.registerSound();

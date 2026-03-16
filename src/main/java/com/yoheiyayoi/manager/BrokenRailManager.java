@@ -28,7 +28,7 @@ public class BrokenRailManager {
     public void breakRail(BlockPos pos, ServerLevel level) {
         if (brokenRails.containsKey(pos)) return;
 
-        int required = 3 + new Random().nextInt(4); // random 3-6
+        int required = 2 + new Random().nextInt(4); // random 2-5
 
         // spawn text display above rail
         Display.TextDisplay textDisplay = new Display.TextDisplay(EntityType.TEXT_DISPLAY, level);

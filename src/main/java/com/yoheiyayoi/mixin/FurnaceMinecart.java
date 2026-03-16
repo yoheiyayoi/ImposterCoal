@@ -1,6 +1,7 @@
 package com.yoheiyayoi.mixin;
 
 import com.yoheiyayoi.ImposterCoal;
+import com.yoheiyayoi.Utils;
 import com.yoheiyayoi.manager.BrokenRailManager;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
@@ -39,9 +40,9 @@ public class FurnaceMinecart {
     @Unique private int fuelCooldown = 0;
 
     @Unique private static final int MAX_FUEL_TO_PUSH = 10;
-    @Unique private static final int COAL_COOLDOWN = 30; // 1.5s
-    @Unique private static final int CHARCOAL_COOLDOWN = 20 * 3; // 3s
-    @Unique private static final int AFTER_FIRE_COOLDOWN = 20 * 20; // 20s
+    @Unique private static final int COAL_COOLDOWN = Utils.convertSecondToTick(2);
+    @Unique private static final int CHARCOAL_COOLDOWN = Utils.convertSecondToTick(4);
+    @Unique private static final int AFTER_FIRE_COOLDOWN = Utils.convertSecondToTick(15);
 
     //-- Functions
 
@@ -68,18 +69,12 @@ public class FurnaceMinecart {
     }
 
 
+    // make it cannot be push by water
+    // don't know is this work? cuz this fn exist in Entity class
+    // btw i test it and the cart doesn't move so i think it's ok
     @Unique
-    private void playServerSound(MinecartFurnace cart, SoundEvent sound, float volume, float pitch) {
-        if (!cart.level().isClientSide()) {
-            cart.level().playSound(
-                    null,
-                    cart.blockPosition(),
-                    sound,
-                    SoundSource.BLOCKS,
-                    volume,
-                    pitch
-            );
-        }
+    public boolean isPushedByFluid() {
+        return false;
     }
 
     // custom fuel method
@@ -118,7 +113,8 @@ public class FurnaceMinecart {
             int itemCooldown = item == Items.COAL ? COAL_COOLDOWN : CHARCOAL_COOLDOWN;
 
             // set cooldown
-            if (currentFuel < MAX_FUEL_TO_PUSH) {
+            // and only cooldown if player is in survival cuz i want to test and don't want to wait for skibidi times
+            if (currentFuel < MAX_FUEL_TO_PUSH && !player.isCreative()) {
                 fuelCooldown = itemCooldown;
             }
 
@@ -216,15 +212,22 @@ public class FurnaceMinecart {
         cart.setCustomNameVisible(true);
     }
 
+    // btw this function bug and i use ai to fix and its work omg claude is the best
     @Unique
-    private boolean hasRailAhead() {
+    private boolean hasRailAhead(Vec3 pushDir) {
         MinecartFurnace cart = (MinecartFurnace)(Object) this;
 
-        Direction dir = cart.getMotionDirection();
-        BlockPos aheadPos = cart.blockPosition().relative(dir);
+        // Pick the dominant cardinal direction from the push vector
+        Direction dir;
+        if (Math.abs(pushDir.x) >= Math.abs(pushDir.z)) {
+            dir = pushDir.x > 0 ? Direction.EAST : Direction.WEST;
+        } else {
+            dir = pushDir.z > 0 ? Direction.SOUTH : Direction.NORTH;
+        }
 
+        BlockPos aheadPos = cart.blockPosition().relative(dir);
         Level level = cart.level();
-        return (isRail(level, aheadPos) || isRail(level, aheadPos.below())) && !isBrokenRailAhead(aheadPos);
+        return isRail(level, aheadPos) && !isBrokenRailAhead(aheadPos);
     }
 
     @Unique
@@ -233,7 +236,7 @@ public class FurnaceMinecart {
         if (cart.level().isClientSide()) return false;
 
         BrokenRailManager brm = BrokenRailManager.getInstance();
-        return brm.isBroken(aheadPos) || brm.isBroken(aheadPos.below());
+        return brm.isBroken(aheadPos);
     }
 
     @Unique
@@ -254,7 +257,8 @@ public class FurnaceMinecart {
             if (!cart.level().isClientSide()) {
                 // 1 in 4 chance logic
                 // in old code who use 1-4 to random? oh it's me bruh
-                if (Math.random() < 0.25) {
+                // btw i reduce to 20% because 25% is too much for me ngl
+                if (Math.random() < 0.20) {
                     ImposterCoal.LOGGER.info("FIRE");
                     setIsOverheat(true);
                 }
@@ -264,8 +268,8 @@ public class FurnaceMinecart {
             Vec3 pushDir = cart.position().subtract(playerPos).horizontal().normalize();
 
             // move cart if not overheat and have rail ahead skibidi toilet
-            ImposterCoal.LOGGER.info(hasRailAhead() ? "true" : "false");
-            if (!getIsOverheat() && hasRailAhead()) {
+            ImposterCoal.LOGGER.info(hasRailAhead(pushDir) ? "true" : "false");
+            if (!getIsOverheat() && hasRailAhead(pushDir)) {
                 cart.push = pushDir.scale(0.035);
             }
 
@@ -280,6 +284,21 @@ public class FurnaceMinecart {
                 );
                 playServerSound(cart, SoundEvents.GHAST_SHOOT, 1.0f, 1.0f);
             }
+        }
+    }
+
+    //-- Utils
+    @Unique
+    private void playServerSound(MinecartFurnace cart, SoundEvent sound, float volume, float pitch) {
+        if (!cart.level().isClientSide()) {
+            cart.level().playSound(
+                    null,
+                    cart.blockPosition(),
+                    sound,
+                    SoundSource.BLOCKS,
+                    volume,
+                    pitch
+            );
         }
     }
 }

@@ -102,8 +102,8 @@ public class GameManager {
         }
 
         // 20 mins warn
-        if (remaining == Utils.convertMinuteToTick(20)) {
-            sendTimeUpCountdown("20", "นาที");
+        if (remaining == Utils.convertMinuteToTick(30)) {
+            sendTimeUpCountdown("30", "นาที");
             boardCast(Component.literal("ระวังถูกฆาตกรสาปนะ").withStyle(ChatFormatting.YELLOW), false);
         }
 
@@ -177,6 +177,7 @@ public class GameManager {
         playServerSound(SoundEvents.AMBIENT_CAVE.value(), 1.0f, 1.0f);
     }
 
+    // Events
     public void onPlayerDeath(ServerPlayer player) {
         if (!isGameStart || !imposterAssigned) return;
 
@@ -200,6 +201,12 @@ public class GameManager {
         // all survivors dead = imposter wins
         if (survivorUUIDs.isEmpty()) {
             imposterWin();
+        }
+    }
+
+    public void onPlayerJoin(ServerPlayer player) {
+        if (bossBar != null) {
+            bossBar.addPlayer(player);
         }
     }
 
@@ -310,9 +317,10 @@ public class GameManager {
         return survivorUUIDs;
     }
 
+    // can mute after 30 mins
     public boolean canMutePlayer() {
-        boolean isRemainTwentyMins = tickCounter >= Utils.convertMinuteToTick(40) && tickCounter < TIME_TIL_GAME_END;
-        return isGameStart && imposterAssigned && isRemainTwentyMins && !isUseMutePower;
+        boolean canMute = tickCounter >= Utils.convertMinuteToTick(30) && tickCounter < TIME_TIL_GAME_END;
+        return isGameStart && imposterAssigned && canMute && !isUseMutePower;
     }
 
     //-- Utils
