@@ -28,8 +28,6 @@ public class ImposterCoal implements ModInitializer {
 			gameManager.init(server);
 			gameManager.resetGame();
 			LOGGER.info("ImposterCoal mod initialized!");
-
-			server.setDifficulty(Difficulty.NORMAL, true);
 		});
 
 		ServerTickEvents.END_SERVER_TICK.register(server -> {

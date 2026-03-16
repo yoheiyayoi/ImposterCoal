@@ -22,8 +22,6 @@ public class GameControlCommand {
         rules.set(GameRules.SHOW_DEATH_MESSAGES, false, server);
         rules.set(GameRules.SHOW_ADVANCEMENT_MESSAGES, false, server);
 
-        server.setDifficulty(Difficulty.NORMAL, true);
-
         context.getSource().sendSuccess(() ->
                 Component.literal("[✔] setup เรียบร้อยแล้ว").withStyle(ChatFormatting.GREEN), false
         );
