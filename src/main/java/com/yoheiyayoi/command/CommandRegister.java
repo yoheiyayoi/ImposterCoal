@@ -15,6 +15,10 @@ public class CommandRegister {
                     .then(Commands.literal("start").executes(GameControlCommand::startGame))
                     .then(Commands.literal("finish").executes(GameControlCommand::cartReachTheEnd))
                     .then(Commands.literal("end").executes(GameControlCommand::endGame))
+
+                    .then(Commands.literal("setimposter").then(Commands.argument("player", EntityArgument.player())
+                            .executes(GameControlCommand::setImposter)
+                    ))
             );
 
             // mute command (for imposter)

@@ -1,12 +1,15 @@
 package com.yoheiyayoi.command;
 
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.yoheiyayoi.manager.GameManager;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.level.gamerules.GameRules;
 
@@ -70,6 +73,24 @@ public class GameControlCommand {
         if (!manager.isStart()) return 1;
 
         manager.survivorWin();
+        return 1;
+    }
+
+    // set imposter command
+    // use to skip 5 mins wait (i want to edit the video and i don't want to wait whole 5 mins omg bro)
+    public static int setImposter(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        GameManager manager = GameManager.getInstance();
+
+        if (!manager.isStart()) {
+            context.getSource().sendSuccess(() ->
+                    Component.literal("[!] ตั้งเป็น Imposter ไม่ได้ เกมยังไม่ได้เริ่ม").withStyle(ChatFormatting.RED), false
+            );
+            return 1;
+        }
+
+        ServerPlayer target = EntityArgument.getPlayer(context, "player");
+        manager.setImposterViaCommand(target);
+
         return 1;
     }
 }

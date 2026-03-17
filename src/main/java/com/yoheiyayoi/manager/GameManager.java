@@ -84,7 +84,7 @@ public class GameManager {
 
         // random imposterrrrrrrrrr after 5 mins ofc
         if (tickCounter >= TIME_TIL_RANDOM_IMPOSTER) {
-            assignImposter();
+            assignImposter(null);
         }
     }
 
@@ -137,17 +137,16 @@ public class GameManager {
     }
 
     //-- Game Logic
-    private void assignImposter() {
+    private void assignImposter(@Nullable ServerPlayer specificPlayer) {
         imposterAssigned = true;
 
         List<ServerPlayer> players = server.getPlayerList().getPlayers();
         if (players.isEmpty()) return;
 
         // pick random imposter
-        ServerPlayer imposter = players.get(new Random().nextInt(players.size()));
+        ServerPlayer imposter = specificPlayer != null ? specificPlayer : players.get(new Random().nextInt(players.size()));
         imposterUUID = imposter.getUUID();
         survivorUUIDs.remove(imposterUUID);
-
         ImposterItem.giveItemToImposter(imposter);
 
         // tell imposter
@@ -175,6 +174,16 @@ public class GameManager {
         });
 
         playServerSound(SoundEvents.AMBIENT_CAVE.value(), 1.0f, 1.0f);
+    }
+
+    public void setImposterViaCommand(ServerPlayer target) {
+        if (imposterAssigned) return;
+
+        List<ServerPlayer> players = server.getPlayerList().getPlayers();
+        if (players.isEmpty()) return;
+
+        assignImposter(target);
+        tickCounter = TIME_TIL_RANDOM_IMPOSTER; // skip 5 mins countdown
     }
 
     // Events
